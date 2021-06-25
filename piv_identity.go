@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/github/certstore"
-	"github.com/github/smimesign/pinentry"
 	"github.com/go-piv/piv-go/piv"
 	"github.com/pkg/errors"
 )
@@ -24,7 +23,7 @@ func PivIdentities() ([]PivIdentity, error) {
 		if err != nil {
 			continue
 		}
-		cert, err := yk.Certificate(piv.SlotSignature)
+		cert, err := yk.Certificate(piv.SlotCardAuthentication)
 		if err != nil {
 			continue
 		}
@@ -48,7 +47,7 @@ var _ crypto.Signer = (*PivIdentity)(nil)
 
 // Certificate implements the certstore.Identity interface
 func (ident *PivIdentity) Certificate() (*x509.Certificate, error) {
-	return ident.yk.Certificate(piv.SlotSignature)
+	return ident.yk.Certificate(piv.SlotCardAuthentication)
 }
 
 // CertificateChain implements the certstore.Identity interface
@@ -88,17 +87,8 @@ func (ident *PivIdentity) Public() crypto.PublicKey {
 
 // Sign implements the crypto.Signer interface
 func (ident *PivIdentity) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	entry, err := pinentry.NewPinentry()
-	if err != nil {
-		return nil, err
-	}
-
-	pin, err := entry.Get(fmt.Sprintf("Enter PIN for \"%v\"", ident.card))
-	if err != nil {
-		return nil, err
-	}
-	private, err := ident.yk.PrivateKey(piv.SlotSignature, ident.Public(), piv.KeyAuth{
-		PIN: pin,
+	private, err := ident.yk.PrivateKey(piv.SlotCardAuthentication, ident.Public(), piv.KeyAuth{
+		PINPolicy: piv.PINPolicyNever,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get private key for signing")
